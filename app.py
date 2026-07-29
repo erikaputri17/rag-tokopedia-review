@@ -128,37 +128,36 @@ with col1:
     run = st.button("🔍 Cari Jawaban", type="primary")
 
 if run and question:
+
+    # Retrieval
     with st.spinner("Mencari dokumen relevan..."):
         docs = retrieve(question, top_k=top_k)
 
     st.subheader("💬 Jawaban")
-    
-    with st.spinner("Menghasilkan jawaban..."):
-        try:
-            answer = generate_answer(question, docs)
-            st.success("Jawaban berhasil dibuat.")
-            st.write(answer)
 
-    except Exception:
-        st.except("Jawaban AI tidak dapat dibuat.",
-                   "Namun dokumen yang relevan berhasil ditemukan.")
-    
-    st.subheader("📚 Dokumen Referensi (hasil retrieval)")
+    try:
+        with st.spinner("Menghasilkan jawaban..."):
+            answer = generate_answer(question, docs)
+
+        st.success("Jawaban berhasil dibuat.")
+        st.write(answer)
+
+    except Exception as e:
+        st.error(f"Gagal menghasilkan jawaban: {e}")
+
+    st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
+
     for d in docs:
 
-    with st.expander(
-        f"[{d['score']:.3f}] {d['category']} - {d['product']}"
-    ):
+        with st.expander(
+            f"[{d['score']:.3f}] {d['category']} - {d['product']}"
+        ):
 
-        st.write(f"**Kategori :** {d['category']}")
-
-        st.write(f"**Produk :** {d['product']}")
-
-        st.write(f"**Sentimen :** {d['sentiment']}")
-
-        st.write("**Isi Review :**")
-
-        st.write(d["review"])
+            st.write(f"**Kategori:** {d['category']}")
+            st.write(f"**Produk:** {d['product']}")
+            st.write(f"**Sentimen:** {d['sentiment']}")
+            st.write("**Isi Review:**")
+            st.write(d["review"])
 
 st.markdown("---")
 st.caption("Dataset: PRDECT-ID (Product Review Dataset for Emotions Classification Tasks in Indonesian)")
