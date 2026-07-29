@@ -105,8 +105,8 @@ KONTEKS
 
 JAWABAN
 """
-response = model.generate_content(prompt)
-return response.text
+    response = model.generate_content(prompt)
+    return response.text
 
 # ----------------------------------------------------------------------
 # 4. UI
