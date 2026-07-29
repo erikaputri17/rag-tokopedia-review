@@ -146,14 +146,13 @@ if run and question:
         st.success("Jawaban berhasil dibuat.")
         st.write(
     f"**Kategori :** {d['category']}")
-st.write(
+        st.write(
     f"**Produk :** {d['product']}")
-st.write(
+        st.write(
     f"**Sentimen :** {d['sentiment']}")
-st.write(
+        st.write(
     "**Isi Review:**")
-st.write(
-    d["review"])
+        st.write(d["review"])
 
     except Exception:
     st.warning(
