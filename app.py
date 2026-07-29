@@ -140,8 +140,8 @@ if run and question:
             st.write(answer)
 
     except Exception:
-        st.warning("Jawaban AI tidak dapat dibuat."
-        "Namun dokumen yang relevan berhasil ditemukan.")
+        st.expect("Jawaban AI tidak dapat dibuat.",
+                   "Namun dokumen yang relevan berhasil ditemukan.")
     
     st.subheader("📚 Dokumen Referensi (hasil retrieval)")
     for d in docs:
