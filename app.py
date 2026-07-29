@@ -21,7 +21,7 @@ st.set_page_config(
     page_icon="🛍️",
     layout="wide")
 
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+MISTRAL_API_KEY = st.secrets["MISTRAL_API_KEY"]
 
 # ----------------------------------------------------------------------
 # 1. LOAD & PREPARE DATA (cache agar tidak diproses ulang setiap interaksi)
@@ -71,22 +71,13 @@ def retrieve(query, top_k=5):
 def generate_answer(question, docs):
     from mistralai import Mistral
     client = Mistral(api_key=MISTRAL_API_KEY)
-    response = client.chat.complete(
-    model="mistral-small-latest",
-    messages=[
-        {
-            "role": "user",
-            "content": prompt
-        }
-    ]
-)
-
-return response.choices[0].message.content
-
     context = "\n\n".join(
-        f"[Dok {i+1}] Kategori: {d['category']} | Produk: {d['product']} | Sentimen: {d['sentiment']}\nUlasan: {d['review']}"
-        for i, d in enumerate(docs)
-    )
+        f"[Dok {i+1}] "
+        f"Kategori: {d['category']} | "
+        f"Produk: {d['product']} | "
+        f"Sentimen: {d['sentiment']}\n"
+        f"Ulasan: {d['review']}"
+        for i, d in enumerate(docs))
     
     prompt = f"""
 Anda adalah seorang analis kepuasan pelanggan.
@@ -97,8 +88,7 @@ Aturan:
 
 1. Jangan menambahkan informasi di luar konteks.
 
-2. Jika informasi tidak cukup,
-katakan bahwa data belum mencukupi.
+2. Jika informasi tidak cukup, katakan bahwa data belum mencukupi.
 
 3. Berikan jawaban dalam bahasa Indonesia.
 
@@ -116,8 +106,17 @@ KONTEKS
 
 JAWABAN
 """
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.chat.complete(
+        model="mistral-small-latest",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+
+    return response.choices[0].message.content
 
 # ----------------------------------------------------------------------
 # 4. UI
