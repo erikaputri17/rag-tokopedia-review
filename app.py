@@ -28,7 +28,7 @@ GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 # ----------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("PRDECT-ID_Dataset.csv")
+    df = pd.read_csv("PRDECT-ID Dataset.csv")
 
     def clean(text):
         t = str(text).lower()
@@ -69,14 +69,25 @@ def retrieve(query, top_k=5):
 # 3. GENERATION (Google Gemini)
 # ----------------------------------------------------------------------
 def generate_answer(question, docs):
-    import google.generativeai as genai
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    from mistralai import Mistral
+    client = Mistral(api_key=MISTRAL_API_KEY)
+    response = client.chat.complete(
+    model="mistral-small-latest",
+    messages=[
+        {
+            "role": "user",
+            "content": prompt
+        }
+    ]
+)
+
+return response.choices[0].message.content
 
     context = "\n\n".join(
         f"[Dok {i+1}] Kategori: {d['category']} | Produk: {d['product']} | Sentimen: {d['sentiment']}\nUlasan: {d['review']}"
         for i, d in enumerate(docs)
     )
+    
     prompt = f"""
 Anda adalah seorang analis kepuasan pelanggan.
 
