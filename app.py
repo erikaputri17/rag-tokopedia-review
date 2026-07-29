@@ -62,27 +62,43 @@ def retrieve(query, top_k=5):
 # ----------------------------------------------------------------------
 # 3. GENERATION (Google Gemini)
 # ----------------------------------------------------------------------
-def generate_answer(api_key, question, docs):
+def generate_answer(question, docs):
     import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    genai.configure(api_key=GOOGLE_API_KEY)
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     context = "\n\n".join(
         f"[Dok {i+1}] Kategori: {d['category']} | Produk: {d['product']} | Sentimen: {d['sentiment']}\nUlasan: {d['review']}"
         for i, d in enumerate(docs)
     )
-    prompt = f"""Anda adalah asisten analisis kepuasan pelanggan. Jawab pertanyaan berikut HANYA
-berdasarkan potongan ulasan pelanggan di bawah ini. Jika informasi tidak cukup, katakan demikian.
-Sertakan kesimpulan singkat dan sebutkan dokumen mana yang mendukung jawaban Anda.
+    prompt = f"""
+Anda adalah seorang analis kepuasan pelanggan.
 
-PERTANYAAN: {question}
+Jawablah pertanyaan pengguna HANYA berdasarkan review yang diberikan.
 
-KONTEKS ULASAN PELANGGAN:
+Aturan:
+
+1. Jangan menambahkan informasi di luar konteks.
+
+2. Jika informasi tidak cukup,
+katakan bahwa data belum mencukupi.
+
+3. Berikan jawaban dalam bahasa Indonesia.
+
+4. Ringkas dalam beberapa paragraf.
+
+5. Sebutkan dokumen mana yang mendukung jawaban.
+
+PERTANYAAN
+
+{question}
+
+KONTEKS
+
 {context}
 
-JAWABAN:"""
-    response = model.generate_content(prompt)
-    return response.text
+JAWABAN
+"""
 
 # ----------------------------------------------------------------------
 # 4. UI
@@ -92,15 +108,25 @@ st.caption("Prototipe Retrieval-Augmented Generation untuk UAS Trending Topics o
 
 with st.sidebar:
     st.header("⚙️ Pengaturan")
-    api_key = st.text_input("Google Gemini API Key", type="password",
-                             help="Dapatkan gratis di https://aistudio.google.com/apikey")
     top_k = st.slider("Jumlah dokumen yang di-retrieve", 3, 10, 5)
     st.markdown("---")
-    st.write(f"📊 Total dokumen di knowledge base: **{len(df)}**")
-    st.write(f"🏷️ Jumlah kategori produk: **{df['Category'].nunique()}**")
+    c1, c2, c3 = st.columns(3)
+with c1:
+    st.metric(
+        "Jumlah Review",
+        len(df))
+with c2:
+    st.metric(
+        "Review Positif",
+        (df["Sentiment"]=="Positive").sum())
+with c3:
+    st.metric(
+        "Review Negatif",
+        (df["Sentiment"]=="Negative").sum())
 
-question = st.text_input("Tanyakan sesuatu tentang ulasan pelanggan:",
-                          placeholder="Contoh: Apakah kualitas produk kategori Kitchen memuaskan pelanggan?")
+question = st.text_area("Masukkan pertanyaan",
+                          placeholder="Contoh: Apakah pelanggan puas dengan kualitas produk?",
+                        height=120)
 
 col1, col2 = st.columns([1, 4])
 with col1:
@@ -111,17 +137,29 @@ if run and question:
         docs = retrieve(question, top_k=top_k)
 
     st.subheader("💬 Jawaban")
-    if api_key:
-        with st.spinner("Menghasilkan jawaban dengan LLM..."):
-            try:
-                answer = generate_answer(api_key, question, docs)
-                st.write(answer)
-            except Exception as e:
-                st.error(f"Gagal memanggil LLM: {e}")
-    else:
-        st.info("Masukkan API key Gemini di sidebar untuk mengaktifkan generation LLM. "
-                "Berikut ditampilkan hasil retrieval saja sebagai bukti konsep.")
+    
+    with st.spinner("Menghasilkan jawaban..."):
+    try:
+        answer = generate_answer(
+            question,
+            docs)
+        st.success("Jawaban berhasil dibuat.")
+        st.write(
+    f"**Kategori :** {d['category']}")
+st.write(
+    f"**Produk :** {d['product']}")
+st.write(
+    f"**Sentimen :** {d['sentiment']}")
+st.write(
+    "**Isi Review:**")
+st.write(
+    d["review"])
 
+    except Exception:
+    st.warning(
+        "Jawaban AI tidak dapat dibuat. "
+        "Namun dokumen yang relevan berhasil ditemukan.")
+    
     st.subheader("📚 Dokumen Referensi (hasil retrieval)")
     for d in docs:
         with st.expander(f"[{d['score']:.3f}] {d['category']} — {d['product'][:60]} ({d['sentiment']})"):
