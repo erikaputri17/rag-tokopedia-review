@@ -16,6 +16,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="RAG - Kepuasan Pelanggan PRDECT-ID", page_icon="🛍️", layout="wide")
+st.set_page_config(
+    page_title="RAG - Kepuasan Pelanggan PRDECT-ID",
+    page_icon="🛍️",
+    layout="wide")
+
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 # ----------------------------------------------------------------------
 # 1. LOAD & PREPARE DATA (cache agar tidak diproses ulang setiap interaksi)
@@ -99,6 +105,8 @@ KONTEKS
 
 JAWABAN
 """
+response = model.generate_content(prompt)
+return response.text
 
 # ----------------------------------------------------------------------
 # 4. UI
@@ -110,19 +118,6 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     top_k = st.slider("Jumlah dokumen yang di-retrieve", 3, 10, 5)
     st.markdown("---")
-    c1, c2, c3 = st.columns(3)
-with c1:
-    st.metric(
-        "Jumlah Review",
-        len(df))
-with c2:
-    st.metric(
-        "Review Positif",
-        (df["Sentiment"]=="Positive").sum())
-with c3:
-    st.metric(
-        "Review Negatif",
-        (df["Sentiment"]=="Negative").sum())
 
 question = st.text_area("Masukkan pertanyaan",
                           placeholder="Contoh: Apakah pelanggan puas dengan kualitas produk?",
@@ -139,30 +134,34 @@ if run and question:
     st.subheader("💬 Jawaban")
     
     with st.spinner("Menghasilkan jawaban..."):
-    try:
+        try:
         answer = generate_answer(
             question,
             docs)
         st.success("Jawaban berhasil dibuat.")
-        st.write(
-    f"**Kategori :** {d['category']}")
-        st.write(
-    f"**Produk :** {d['product']}")
-        st.write(
-    f"**Sentimen :** {d['sentiment']}")
-        st.write(
-    "**Isi Review:**")
-        st.write(d["review"])
+        st.write(answer)
 
     except Exception:
-    st.warning(
+        st.warning(
         "Jawaban AI tidak dapat dibuat. "
         "Namun dokumen yang relevan berhasil ditemukan.")
     
     st.subheader("📚 Dokumen Referensi (hasil retrieval)")
     for d in docs:
-        with st.expander(f"[{d['score']:.3f}] {d['category']} — {d['product'][:60]} ({d['sentiment']})"):
-            st.write(d["review"])
+
+    with st.expander(
+        f"[{d['score']:.3f}] {d['category']} - {d['product']}"
+    ):
+
+        st.write(f"**Kategori :** {d['category']}")
+
+        st.write(f"**Produk :** {d['product']}")
+
+        st.write(f"**Sentimen :** {d['sentiment']}")
+
+        st.write("**Isi Review :**")
+
+        st.write(d["review"])
 
 st.markdown("---")
 st.caption("Dataset: PRDECT-ID (Product Review Dataset for Emotions Classification Tasks in Indonesian)")
