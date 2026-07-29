@@ -140,7 +140,7 @@ if run and question:
             st.write(answer)
 
     except Exception:
-        st.error("Jawaban AI tidak dapat dibuat.",
+        st.except("Jawaban AI tidak dapat dibuat.",
                    "Namun dokumen yang relevan berhasil ditemukan.")
     
     st.subheader("📚 Dokumen Referensi (hasil retrieval)")
