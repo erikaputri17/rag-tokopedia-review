@@ -136,12 +136,11 @@ if run and question:
     with st.spinner("Menghasilkan jawaban..."):
         try:
             answer = generate_answer(question, docs)
-        st.success("Jawaban berhasil dibuat.")
-        st.write(answer)
+            st.success("Jawaban berhasil dibuat.")
+            st.write(answer)
 
     except Exception:
-        st.warning(
-        "Jawaban AI tidak dapat dibuat. "
+        st.warning("Jawaban AI tidak dapat dibuat."
         "Namun dokumen yang relevan berhasil ditemukan.")
     
     st.subheader("📚 Dokumen Referensi (hasil retrieval)")
