@@ -135,9 +135,7 @@ if run and question:
     
     with st.spinner("Menghasilkan jawaban..."):
         try:
-        answer = generate_answer(
-            question,
-            docs)
+            answer = generate_answer(question, docs)
         st.success("Jawaban berhasil dibuat.")
         st.write(answer)
 
