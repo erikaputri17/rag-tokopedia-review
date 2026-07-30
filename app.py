@@ -3,9 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import string
-
-# Impor resmi dari SDK google-genai terbaru
-from google import genai
+import google.generativeai as genai
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -104,11 +102,36 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (SDK GOOGLE GENAI TERBARU) ---
+# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
 def generate_answer(question, docs, user_api_key):
-    # Inisialisasi client dari google-genai
-    client = genai.Client(api_key=user_api_key)
+    genai.configure(api_key=user_api_key)
     
+    # Kumpulan nama model kandidat resmi
+    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
+    
+    model = None
+    # Coba cari model yang tersedia dari API key secara otomatis
+    try:
+        available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        if available:
+            # Gunakan model pertama yang mendukung generateContent
+            selected_model_name = available[0]
+            model = genai.GenerativeModel(selected_model_name)
+    except Exception:
+        pass
+
+    # Fallback jika pencarian daftar model gagal
+    if model is None:
+        for m_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(m_name)
+                break
+            except Exception:
+                continue
+
+    if model is None:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
     context = ""
     for i, d in enumerate(docs):
         context += f"""
@@ -144,11 +167,7 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    # Memanggil model gemini-flash resmi
-    response = client.models.generate_content(
-        model="gemini-flash",
-        contents=prompt,
-    )
+    response = model.generate_content(prompt)
     return response.text
 
 # --- INTERFACE UTAMA ---
