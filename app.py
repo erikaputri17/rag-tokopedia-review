@@ -1,210 +1,222 @@
-"""
-RAG Streamlit App
-Analisis Kepuasan Pelanggan PRDECT-ID
-"""
-
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
 import string
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-import google.generativeai as genai
-
-# ======================================================
-# KONFIGURASI HALAMAN
-# ======================================================
+from mistralai import Mistral
 
 st.set_page_config(
-    page_title="RAG - Analisis Kepuasan Pelanggan",
+    page_title="RAG Analisis Kepuasan Pelanggan",
     page_icon="🛍️",
     layout="wide"
 )
 
-# ======================================================
-# API KEY GEMINI
-# ======================================================
+MISTRAL_API_KEY = st.secrets["MISTRAL_API_KEY"]
 
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-
-genai.configure(api_key=GOOGLE_API_KEY)
-
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# ======================================================
-# LOAD DATASET
-# ======================================================
+client = Mistral(
+    api_key=MISTRAL_API_KEY
+)
 
 @st.cache_data
 def load_data():
 
     df = pd.read_csv("PRDECT-ID_Dataset.csv")
 
-    def clean_text(text):
-
-        text = str(text).lower()
-
-        text = re.sub(r"http\S+|www\S+", " ", text)
-
-        text = re.sub(r"\d+", " ", text)
-
-        text = re.sub(r"[^\w\s]", " ", text)
-
-        text = text.translate(
-            str.maketrans("", "", string.punctuation)
-        )
-
-        text = re.sub(r"\s+", " ", text).strip()
-
-        return text
-
-    df["clean_text"] = df["Customer Review"].apply(clean_text)
-
-    df["kb_text"] = (
-        "Kategori : "
-        + df["Category"].astype(str)
-        + "\nProduk : "
-        + df["Product Name"].astype(str)
-        + "\nSentimen : "
-        + df["Sentiment"].astype(str)
-        + "\nReview : "
-        + df["Customer Review"].astype(str)
-    )
-
     return df
-
 
 df = load_data()
 
-# ======================================================
-# MEMBANGUN TF-IDF
-# ======================================================
+def clean_text(text):
+
+    text = str(text).lower()
+
+    text = re.sub(r"http\S+", " ", text)
+
+    text = re.sub(r"\d+", " ", text)
+
+    text = text.translate(
+        str.maketrans("", "", string.punctuation)
+    )
+
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+df["clean_text"] = df["Customer Review"].apply(clean_text)
+
+df["kb_text"] = (
+
+    "Kategori : "
+
+    + df["Category"]
+
+    + "\nProduk : "
+
+    + df["Product Name"]
+
+    + "\nSentimen : "
+
+    + df["Sentiment"]
+
+    + "\nReview : "
+
+    + df["Customer Review"]
+
+)
 
 @st.cache_resource
-def build_index(df):
+def build_index():
 
     vectorizer = TfidfVectorizer(
+
         max_features=8000,
+
         ngram_range=(1,2)
+
     )
 
     matrix = vectorizer.fit_transform(
+
         df["clean_text"]
+
     )
 
     return vectorizer, matrix
 
+vectorizer, tfidf_matrix = build_index()
 
-vectorizer, tfidf_matrix = build_index(df)
-
-# ======================================================
+# ==========================================================
 # RETRIEVAL
-# ======================================================
+# ==========================================================
 
 def retrieve(query, top_k=5):
 
-    query = query.lower()
+    # Bersihkan query
+    query = clean_text(query)
 
-    query = re.sub(r"[^\x00-\x7F]+", " ", query)
-
+    # Ubah menjadi vector TF-IDF
     query_vector = vectorizer.transform([query])
 
+    # Hitung cosine similarity
     similarity = cosine_similarity(
         query_vector,
         tfidf_matrix
-    ).ravel()
+    ).flatten()
 
-    index = similarity.argsort()[::-1][:top_k]
+    # Ambil index dengan similarity terbesar
+    top_index = similarity.argsort()[::-1][:top_k]
 
     documents = []
 
-    for i in index:
+    for idx in top_index:
 
         documents.append({
 
-            "doc_id": int(i),
+            "doc_id": int(idx),
 
-            "score": float(similarity[i]),
+            "score": float(similarity[idx]),
 
-            "category": df.iloc[i]["Category"],
+            "category": df.iloc[idx]["Category"],
 
-            "product": df.iloc[i]["Product Name"],
+            "product": df.iloc[idx]["Product Name"],
 
-            "review": df.iloc[i]["Customer Review"],
+            "review": df.iloc[idx]["Customer Review"],
 
-            "sentiment": df.iloc[i]["Sentiment"]
+            "sentiment": df.iloc[idx]["Sentiment"]
 
         })
 
     return documents
 
+# ==========================================================
+# GENERATE ANSWER
+# ==========================================================
 
-# ======================================================
-# GENERATION (GEMINI)
-# ======================================================
+def generate_answer(question, docs):
 
-def generate_answer(question, retrieved_docs):
+    context = ""
 
-    context = "\n\n".join(
+    for i, d in enumerate(docs):
 
-        [
+        context += f"""
+Dokumen {i+1}
 
-            f"[Dok {i+1}] "
+Kategori : {d['category']}
 
-            f"Kategori: {d['category']} | "
+Produk : {d['product']}
 
-            f"Produk: {d['product']} | "
+Sentimen : {d['sentiment']}
 
-            f"Sentimen: {d['sentiment']}\n"
+Review :
+{d['review']}
 
-            f"Ulasan: {d['review']}"
+--------------------------------------
 
-            for i, d in enumerate(retrieved_docs)
-
-        ]
-
-    )
+"""
 
     prompt = f"""
-Anda adalah asisten analisis kepuasan pelanggan.
+Anda adalah AI Assistant yang bertugas menganalisis kepuasan pelanggan e-commerce Indonesia.
 
-Jawablah pertanyaan HANYA berdasarkan review pelanggan di bawah ini.
+Jawablah pertanyaan pengguna HANYA berdasarkan review yang diberikan.
 
-Jangan menggunakan pengetahuan di luar konteks.
+Jangan menggunakan pengetahuan di luar review.
 
-Jika informasi tidak cukup, katakan bahwa data tidak mencukupi.
+Jika informasi belum cukup, katakan bahwa data review belum mencukupi.
 
-Buat jawaban dalam bahasa Indonesia.
-
-Ringkas hasil review menjadi beberapa paragraf.
+Buat jawaban dalam bahasa Indonesia yang natural.
 
 Jangan menyalin review satu per satu.
 
-Di bagian akhir tuliskan dokumen mana yang menjadi dasar jawaban.
+Rangkum review menjadi sebuah analisis.
+
+Di bagian akhir tuliskan dokumen mana yang menjadi referensi jawaban.
+
+==============================
 
 PERTANYAAN
 
 {question}
 
-KONTEKS REVIEW
+==============================
+
+REVIEW
 
 {context}
+
+==============================
 
 JAWABAN
 """
 
-    response = model.generate_content(prompt)
+    response = client.chat.complete(
 
-    return response.text
+        model="mistral-small-latest",
 
+        messages=[
 
-# ======================================================
+            {
+
+                "role": "user",
+
+                "content": prompt
+
+            }
+
+        ]
+
+    )
+
+    return response.choices[0].message.content
+
+# ==========================================================
 # RAG PIPELINE
-# ======================================================
+# ==========================================================
 
-def rag_pipeline(question, top_k):
+def rag(question, top_k):
 
     docs = retrieve(question, top_k)
 
@@ -212,117 +224,170 @@ def rag_pipeline(question, top_k):
 
     return answer, docs
 
-# ======================================================
-# USER INTERFACE
-# ======================================================
-
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 
-st.caption(
-    "Retrieval-Augmented Generation (RAG) menggunakan TF-IDF, "
-    "Cosine Similarity, dan Google Gemini"
-)
+st.markdown("""
+Prototype **Retrieval-Augmented Generation (RAG)** menggunakan
+**TF-IDF + Cosine Similarity + Mistral AI**
 
-# ===========================
-# Sidebar
-# ===========================
+Dataset:
+PRDECT-ID (Product Review Dataset for Emotion Classification Tasks in Indonesian)
+""")
 
 with st.sidebar:
 
     st.header("⚙️ Pengaturan")
 
     top_k = st.slider(
+
         "Jumlah dokumen yang diambil",
+
         min_value=3,
+
         max_value=10,
+
         value=5
+
     )
 
     st.markdown("---")
 
-    st.metric(
-        "Jumlah Review",
-        len(df)
-    )
+    st.subheader("📊 Informasi Dataset")
 
-    st.metric(
-        "Kategori Produk",
-        df["Category"].nunique()
-    )
+    st.write(f"Jumlah Review : **{len(df)}**")
 
-    st.metric(
-        "Review Positif",
-        (df["Sentiment"] == "Positive").sum()
-    )
+    st.write(f"Kategori Produk : **{df['Category'].nunique()}**")
 
-    st.metric(
-        "Review Negatif",
-        (df["Sentiment"] == "Negative").sum()
-    )
+    st.write(f"Review Positif : **{(df['Sentiment']=='Positive').sum()}**")
 
-# ===========================
-# Input Pertanyaan
-# ===========================
+    st.write(f"Review Negatif : **{(df['Sentiment']=='Negative').sum()}**")
+
+    st.markdown("---")
+
+    st.subheader("📂 Daftar Kategori")
+
+    kategori = sorted(df["Category"].dropna().unique())
+
+    for k in kategori:
+
+        jumlah = len(df[df["Category"] == k])
+
+        st.write(f"• {k} ({jumlah})")
+
+    st.markdown("---")
+
+    st.subheader("💡 Contoh Pertanyaan")
+
+    st.write("• Bagaimana kepuasan pelanggan pada kategori Beauty?")
+
+    st.write("• Apa keluhan pelanggan terhadap produk Electronics?")
+
+    st.write("• Produk apa yang paling banyak mendapat review positif?")
+
+    st.write("• Mengapa pelanggan memberikan review negatif?")
+
+    st.write("• Apa kelebihan produk kategori Kitchen?")
 
 question = st.text_area(
+
     "Masukkan pertanyaan",
-    placeholder="Contoh: Bagaimana kepuasan pelanggan terhadap kategori Kitchen?",
-    height=120
+
+    height=120,
+
+    placeholder="Contoh: Bagaimana kepuasan pelanggan terhadap kategori Beauty?"
+
 )
 
-if st.button("🔍 Cari Jawaban", use_container_width=True):
+run = st.button(
 
-    if question.strip() == "":
+    "🔍 Cari Jawaban",
+
+    use_container_width=True
+
+)
+
+if run:
+
+    if question == "":
+
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
 
     else:
 
-        with st.spinner("Mencari dokumen yang relevan..."):
+        with st.spinner("🔍 Mencari dokumen yang relevan..."):
 
-            docs = retrieve(question, top_k)
+            docs = retrieve(
 
-        with st.spinner("Menyusun jawaban menggunakan Gemini..."):
+                question,
+
+                top_k
+
+            )
+
+        with st.spinner("🤖 Menyusun jawaban menggunakan Mistral..."):
 
             try:
 
-                answer = generate_answer(question, docs)
+                answer = generate_answer(
+
+                    question,
+
+                    docs
+
+                )
+
+                st.success("Jawaban berhasil dibuat.")
 
                 st.subheader("💬 Jawaban AI")
 
-                st.success(answer)
+                st.write(answer)
 
             except Exception as e:
 
-                st.error(f"Gagal menghasilkan jawaban.\n\n{e}")
+                st.error(f"Gagal menghasilkan jawaban\n\n{e}")
 
-        st.divider()
+        st.markdown("---")
 
-        st.subheader("📚 Dokumen Referensi")
+        st.subheader("📚 Referensi Dokumen")
 
         for i, d in enumerate(docs):
 
             with st.expander(
-                f"Dokumen {i+1} | Similarity = {d['score']:.3f}"
+
+                f"Dokumen {i+1} | Similarity {d['score']:.3f}"
+
             ):
 
                 st.write(
+
                     f"**Kategori :** {d['category']}"
+
                 )
 
                 st.write(
+
                     f"**Produk :** {d['product']}"
+
                 )
 
                 st.write(
+
                     f"**Sentimen :** {d['sentiment']}"
+
                 )
 
                 st.write("**Isi Review**")
 
-                st.write(d["review"])
+                st.write(
+
+                    d["review"]
+
+                )
 
 st.markdown("---")
 
 st.caption(
-    "Dataset : PRDECT-ID (Product Review Dataset for Emotion Classification Tasks in Indonesian)"
+
+    "Universitas Islam Indonesia | Mata Kuliah Trending Topics on Statistics | Prototype Retrieval-Augmented Generation"
+
 )
