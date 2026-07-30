@@ -5,5 +5,5 @@ scikit-learn
 Sastrawi
 wordcloud
 gensim
-mistralai
+mistralai>=1.0.0
 matplotlib
