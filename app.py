@@ -3,8 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import string
-import google.generativeai as genai
-
+from mistralai import Mistral
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -15,20 +14,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- PENANGANAN GEMINI API KEY ---
+# --- PENANGANAN MISTRAL API KEY ---
 api_key = None
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
-elif "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
+if "MISTRAL_API_KEY" in st.secrets:
+    api_key = st.secrets["MISTRAL_API_KEY"]
 
 with st.sidebar:
     st.header("⚙️ Pengaturan RAG")
     if not api_key:
         api_key = st.text_input(
-            "Masukkan Gemini API Key:", 
+            "Masukkan Mistral API Key:", 
             type="password", 
-            help="Dapatkan API Key gratis di https://aistudio.google.com/apikey"
+            help="Dapatkan API Key gratis di https://console.mistral.ai"
         )
     
     top_k = st.slider(
@@ -102,34 +99,10 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
-# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
+# --- FUNGSI GENERATE ANSWER (MISTRAL AI) ---
 def generate_answer(question, docs, user_api_key):
-    genai.configure(api_key=user_api_key)
+    client = Mistral(api_key=user_api_key)
     
-    # Kumpulan kandidat nama model resmi
-    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-pro"]
-    
-    model = None
-    last_error = None
-
-    for m_name in candidate_models:
-        try:
-            m = genai.GenerativeModel(m_name)
-            # Tes panggil sederhana untuk memastikan model bisa digunakan
-            context_test = f"Ulasan singkat: {docs[0]['review'] if docs else 'Bagus'}"
-            prompt_test = f"Jawab singkat: {question}\nKonteks: {context_test}"
-            response = m.generate_content(prompt_test)
-            if response.text:
-                model = m
-                return response.text
-        except Exception as e:
-            last_error = e
-            continue
-
-    if model is None:
-        raise Exception(f"Seluruh model Gemini gagal dipanggil. Detail error terakhir: {last_error}")
-
     context = ""
     for i, d in enumerate(docs):
         context += f"""
@@ -165,14 +138,17 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.chat.complete(
+        model="mistral-small-latest",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
 
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
 Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
-*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Google Gemini LLM Generation*
+*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Mistral AI LLM Generation*
 """)
 
 # Sidebar Info
@@ -206,19 +182,19 @@ if run:
     if not question.strip():
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
     elif not api_key:
-        st.error("Gemini API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
+        st.error("Mistral API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
     else:
         with st.spinner("🔍 Melakukan retrieval dokumen relevan..."):
             docs = retrieve(question, top_k)
 
-        with st.spinner("🤖 Menyusun analisis menggunakan Google Gemini..."):
+        with st.spinner("🤖 Menyusun analisis menggunakan Mistral AI..."):
             try:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
                 st.write(answer)
             except Exception as e:
-                st.error(f"Gagal menghasilkan jawaban dari Gemini API: {e}")
+                st.error(f"Gagal menghasilkan jawaban dari Mistral API: {e}")
 
         st.markdown("---")
         st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")

@@ -2,5 +2,5 @@ streamlit
 pandas
 numpy
 scikit-learn
-google-generativeai
+mistralai>=1.0.0
 matplotlib
