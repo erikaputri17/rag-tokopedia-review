@@ -105,8 +105,6 @@ def retrieve(query, top_k=5):
 # --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
 def generate_answer(question, docs, user_api_key):
     genai.configure(api_key=user_api_key)
-    def generate_answer(question, docs, user_api_key):
-    genai.configure(api_key=user_api_key)
     
     # Coba gunakan gemini-1.5-flash-latest atau gemini-1.5-pro
     try:
