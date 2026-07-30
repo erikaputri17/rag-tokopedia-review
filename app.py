@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import string
-import google.generativeai as genai
+from groq import Groq
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -15,20 +15,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- PENANGANAN GEMINI API KEY ---
+# --- PENANGANAN GROQ API KEY ---
 api_key = None
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
-elif "GOOGLE_API_KEY" in st.secrets:
-    api_key = st.secrets["GOOGLE_API_KEY"]
+if "GROQ_API_KEY" in st.secrets:
+    api_key = st.secrets["GROQ_API_KEY"]
 
 with st.sidebar:
     st.header("⚙️ Pengaturan RAG")
     if not api_key:
         api_key = st.text_input(
-            "Masukkan Gemini API Key:", 
+            "Masukkan Groq API Key:", 
             type="password", 
-            help="Dapatkan API Key gratis di https://aistudio.google.com/apikey"
+            help="Dapatkan API Key gratis di https://console.groq.com"
         )
     
     top_k = st.slider(
@@ -102,14 +100,10 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
-# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
+# --- FUNGSI GENERATE ANSWER (GROQ API) ---
 def generate_answer(question, docs, user_api_key):
-    genai.configure(api_key=user_api_key)
+    client = Groq(api_key=user_api_key)
     
-    # Gunakan nama model resmi dan paling stabil
-    model = genai.GenerativeModel("gemini-1.5-flash")
-
     context = ""
     for i, d in enumerate(docs):
         context += f"""
@@ -145,21 +139,18 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    response = model.generate_content(prompt)
-    
-    # Penanganan aman untuk mengambil teks respon
-    if hasattr(response, 'text') and response.text:
-        return response.text
-    elif response.candidates:
-        return response.candidates[0].content.parts[0].text
-    else:
-        return "Maaf, AI tidak dapat menghasilkan jawaban untuk pertanyaan ini."
-    
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+    return response.choices[0].message.content
+
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
 Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
-*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Google Gemini LLM Generation*
+*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Llama 3 (via Groq)*
 """)
 
 # Sidebar Info
@@ -193,19 +184,19 @@ if run:
     if not question.strip():
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
     elif not api_key:
-        st.error("Gemini API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
+        st.error("Groq API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
     else:
         with st.spinner("🔍 Melakukan retrieval dokumen relevan..."):
             docs = retrieve(question, top_k)
 
-        with st.spinner("🤖 Menyusun analisis menggunakan Google Gemini..."):
+        with st.spinner("🤖 Menyusun analisis menggunakan Llama 3 via Groq..."):
             try:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
                 st.markdown(answer)
             except Exception as e:
-                st.error(f"Gagal menghasilkan jawaban dari Gemini API: {e}")
+                st.error(f"Gagal menghasilkan jawaban dari Groq API: {e}")
 
         st.markdown("---")
         st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
