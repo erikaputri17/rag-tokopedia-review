@@ -107,19 +107,28 @@ def retrieve(query, top_k=5):
 def generate_answer(question, docs, user_api_key):
     genai.configure(api_key=user_api_key)
     
-    # Mencoba nama model yang didukung secara berurutan
-    model_names = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-pro"]
+    # Kumpulan kandidat nama model resmi
+    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-pro"]
     
     model = None
-    for m_name in model_names:
+    last_error = None
+
+    for m_name in candidate_models:
         try:
-            model = genai.GenerativeModel(m_name)
-            break
-        except Exception:
+            m = genai.GenerativeModel(m_name)
+            # Tes panggil sederhana untuk memastikan model bisa digunakan
+            context_test = f"Ulasan singkat: {docs[0]['review'] if docs else 'Bagus'}"
+            prompt_test = f"Jawab singkat: {question}\nKonteks: {context_test}"
+            response = m.generate_content(prompt_test)
+            if response.text:
+                model = m
+                return response.text
+        except Exception as e:
+            last_error = e
             continue
-            
+
     if model is None:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        raise Exception(f"Seluruh model Gemini gagal dipanggil. Detail error terakhir: {last_error}")
 
     context = ""
     for i, d in enumerate(docs):
