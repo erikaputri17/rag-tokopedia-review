@@ -6,4 +6,4 @@ Sastrawi
 wordcloud
 gensim
 mistralai
-google-generativeai
+matplotlib

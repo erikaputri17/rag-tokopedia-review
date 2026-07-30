@@ -8,13 +8,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from mistralai import Mistral
 
+# --- KONFIGURASI HALAMAN ---
 st.set_page_config(
-    page_title="RAG Analisis Kepuasan Pelanggan",
+    page_title="RAG Analisis Kepuasan Pelanggan PRDECT-ID",
     page_icon="🛍️",
     layout="wide"
 )
 
-# --- KONFIGURASI API KEY ---
+# --- PENANGANAN API KEY ---
 api_key = None
 if "MISTRAL_API_KEY" in st.secrets:
     api_key = st.secrets["MISTRAL_API_KEY"]
@@ -22,8 +23,7 @@ if "MISTRAL_API_KEY" in st.secrets:
 with st.sidebar:
     st.header("⚙️ Pengaturan RAG")
     if not api_key:
-        api_key = st.text_input("Masukkan Mistral API Key:", type="password")
-        st.caption("Dapatkan API Key di [console.mistral.ai](https://console.mistral.ai/)")
+        api_key = st.text_input("Masukkan Mistral API Key:", type="password", help="Dapatkan API Key di console.mistral.ai")
     
     top_k = st.slider(
         "Jumlah dokumen yang diambil (Top-K):",
@@ -32,15 +32,19 @@ with st.sidebar:
         value=5
     )
 
-# --- LOAD DATASET ---
+# --- MEMATIKAN DATASET ---
 @st.cache_data
 def load_data():
     df = pd.read_csv("PRDECT-ID_Dataset.csv")
     return df
 
-df = load_data()
+try:
+    df = load_data()
+except Exception as e:
+    st.error("File 'PRDECT-ID_Dataset.csv' tidak ditemukan. Pastikan file berada di direktori yang sama.")
+    st.stop()
 
-# --- KAMUS SLANG & CLEANING TEKS ---
+# --- KAMUS NORMALISASI SLANG & CLEANING TEKS ---
 slang_dict = {
     "gk": "tidak", "ga": "tidak", "gak": "tidak", "tdk": "tidak", "bgs": "bagus",
     "trimakasih": "terima kasih", "trims": "terima kasih", "recomend": "rekomendasi",
@@ -67,14 +71,13 @@ def build_index():
         max_features=8000,
         ngram_range=(1, 2)
     )
-    # Menggabungkan teks ulasan dan kategori untuk bobot pencarian lebih baik
     corpus = df["clean_text"] + " " + df["Category"].astype(str).str.lower()
     matrix = vectorizer.fit_transform(corpus)
     return vectorizer, matrix
 
 vectorizer, tfidf_matrix = build_index()
 
-# --- RETRIEVAL ---
+# --- FUNGSI RETRIEVAL ---
 def retrieve(query, top_k=5):
     clean_q = clean_text(query)
     query_vector = vectorizer.transform([clean_q])
@@ -93,7 +96,7 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- GENERATE ANSWER ---
+# --- FUNGSI GENERATE ANSWER (MISTRAL AI) ---
 def generate_answer(question, docs, client_api):
     client = Mistral(api_key=client_api)
     
@@ -118,7 +121,7 @@ Jika informasi pada dokumen ulasan tidak mencukupi, katakan secara jujur bahwa d
 Aturan Jawaban:
 1. Buat jawaban ringkas, terstruktur, dan analisis yang natural.
 2. Rangkum temuan utama (poin positif/negatif) bukan sekadar menyalin teks ulasan.
-3. Di bagian akhir, sebutkan dokumen referensi mana saja (misal: Dokumen 1, Dokumen 3) yang mendukung jawaban Anda.
+3. Di bagian akhir, sebutkan secara jelas dokumen referensi mana saja (misal: Dokumen 1, Dokumen 3) yang mendukung jawaban Anda.
 
 ==============================
 PERTANYAAN:
@@ -141,18 +144,18 @@ JAWABAN:
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
-Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan.  
+Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
 *Arsitektur: TF-IDF Retrieval + Cosine Similarity + Mistral AI LLM Generation*
 """)
 
-# Informasi Dataset di Sidebar
+# Sidebar Info
 with st.sidebar:
     st.markdown("---")
-    st.subheader("📊 Statistik Dataset")
+    st.subheader("📊 Informasi Dataset")
     st.write(f"Total Ulasan: **{len(df):,}**")
     st.write(f"Total Kategori: **{df['Category'].nunique()}**")
-    pos_count = (df['Sentiment'].str.capitalize() == 'Positive').sum()
-    neg_count = (df['Sentiment'].str.capitalize() == 'Negative').sum()
+    pos_count = (df['Sentiment'].astype(str).str.capitalize() == 'Positive').sum()
+    neg_count = (df['Sentiment'].astype(str).str.capitalize() == 'Negative').sum()
     st.write(f"Review Positif: **{pos_count:,}**")
     st.write(f"Review Negatif: **{neg_count:,}**")
 
@@ -163,11 +166,11 @@ with st.sidebar:
     st.caption("• Mengapa pelanggan memberikan review negatif?")
     st.caption("• Bagaimana kualitas pengiriman dan kemasan produk?")
 
-# Input Pertanyaan
+# Form Pertanyaan
 question = st.text_area(
     "Masukkan Pertanyaan Analisis:",
     height=100,
-    placeholder="Contoh: Apa keluhan paling umum pelanggan mengenai pengiriman barang?"
+    placeholder="Contoh: Bagaimana kepuasan pelanggan terhadap kualitas produk kecantikan?"
 )
 
 run = st.button("🔍 Cari Jawaban & Analisis", use_container_width=True)
@@ -176,19 +179,19 @@ if run:
     if not question.strip():
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
     elif not api_key:
-        st.error("Masukkan Mistral API Key di sidebar untuk melanjutkan.")
+        st.error("Mistral API Key belum diisi. Masukkan API Key di sidebar atau konfigurasi st.secrets.")
     else:
         with st.spinner("🔍 Melakukan retrieval dokumen relevan..."):
             docs = retrieve(question, top_k)
 
-        with st.spinner("🤖 Menyusun analisis menggunakan LLM Mistral..."):
+        with st.spinner("🤖 Menyusun analisis menggunakan Mistral AI..."):
             try:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
                 st.write(answer)
             except Exception as e:
-                st.error(f"Gagal menghasilkan jawaban dari API: {e}")
+                st.error(f"Gagal menghasilkan jawaban dari Mistral API: {e}")
 
         st.markdown("---")
         st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
@@ -198,4 +201,4 @@ if run:
                 st.write(f"**Ulasan:** {d['review']}")
 
 st.markdown("---")
-st.caption("UAS Trending Topics on Statistics | Universitas Islam Indonesia")
+st.caption("Universitas Islam Indonesia | Mata Kuliah Trending Topics on Statistics | Prototipe Retrieval-Augmented Generation")
