@@ -6,7 +6,21 @@ import string
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from mistralai import Mistral
+# Impor dengan penanganan backward-compatibility
+# Penanganan Impor Kompatibel untuk Mistral AI Versi Lama Maupun Baru
+try:
+    from mistralai import Mistral
+except ImportError:
+    from mistralai.client import MistralClient
+    
+    # Wrapper sederhana jika SDK yang terinstall adalah versi lama
+    class Mistral:
+        def __init__(self, api_key):
+            self.client = MistralClient(api_key=api_key)
+            self.chat = self
+        def complete(self, model, messages):
+            res = self.client.chat(model=model, messages=messages)
+            return res
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -98,48 +112,46 @@ def retrieve(query, top_k=5):
 
 # --- FUNGSI GENERATE ANSWER (MISTRAL AI) ---
 def generate_answer(question, docs, client_api):
-    client = Mistral(api_key=client_api)
-    
-    context = ""
-    for i, d in enumerate(docs):
-        context += f"""
-Dokumen {i+1}
-Kategori : {d['category']}
-Produk   : {d['product']}
-Sentimen : {d['sentiment']}
-Review   : {d['review']}
---------------------------------------
-"""
+    try:
+        from mistralai import Mistral
+        client = Mistral(api_key=client_api)
+        
+        context = ""
+        for i, d in enumerate(docs):
+            context += f"\nDokumen {i+1}\nKategori : {d['category']}\nProduk   : {d['product']}\nSentimen : {d['sentiment']}\nReview   : {d['review']}\n--------------------------------------\n"
 
-    prompt = f"""
-Anda adalah AI Assistant yang bertugas menganalisis kepuasan pelanggan e-commerce Indonesia berdasarkan dataset ulasan PRDECT-ID.
+        prompt = f"""Anda adalah AI Assistant analisis kepuasan pelanggan PRDECT-ID.
+Jawablah pertanyaan HANYA berdasarkan konteks ulasan berikut:
 
-Jawablah pertanyaan pengguna HANYA berdasarkan konteks ulasan yang diberikan berikut ini.
-Jangan menggunakan pengetahuan atau asumsi di luar ulasan ini.
-Jika informasi pada dokumen ulasan tidak mencukupi, katakan secara jujur bahwa data ulasan belum mencukupi.
-
-Aturan Jawaban:
-1. Buat jawaban ringkas, terstruktur, dan analisis yang natural.
-2. Rangkum temuan utama (poin positif/negatif) bukan sekadar menyalin teks ulasan.
-3. Di bagian akhir, sebutkan secara jelas dokumen referensi mana saja (misal: Dokumen 1, Dokumen 3) yang mendukung jawaban Anda.
-
-==============================
 PERTANYAAN:
 {question}
 
-==============================
 KONTEKS ULASAN:
 {context}
 
-==============================
-JAWABAN:
-"""
+JAWABAN:"""
 
-    response = client.chat.complete(
-        model="mistral-small-latest",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content
+        # Memanggil API Mistral
+        if hasattr(client, 'chat') and hasattr(client.chat, 'complete'):
+            response = client.chat.complete(
+                model="mistral-small-latest",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content
+        else:
+            # Fallback untuk SDK versi lama (MistralClient)
+            from mistralai.client import MistralClient
+            from mistralai.models.chat_completion import ChatMessage
+            
+            old_client = MistralClient(api_key=client_api)
+            response = old_client.chat(
+                model="mistral-small-latest",
+                messages=[ChatMessage(role="user", content=prompt)]
+            )
+            return response.choices[0].message.content
+            
+    except Exception as e:
+        raise Exception(f"Gagal memanggil Mistral API: {str(e)}")
 
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
