@@ -80,21 +80,25 @@ def generate_answer(question, docs):
         for i, d in enumerate(docs))
     
     prompt = f"""
-Anda adalah seorang analis kepuasan pelanggan.
+Anda adalah AI Assistant untuk analisis keputusan pelanggan.
 
 Jawablah pertanyaan pengguna HANYA berdasarkan review yang diberikan.
 
-Aturan:
+Jangan menambahkan informasi di luar konteks.
 
-1. Jangan menambahkan informasi di luar konteks.
+Jika informasi tidak cukup, katakan bahwa data belum mencukupi.
 
-2. Jika informasi tidak cukup, katakan bahwa data belum mencukupi.
+Berikan jawaban dalam bahasa Indonesia.
 
-3. Berikan jawaban dalam bahasa Indonesia.
+Sebutkan dokumen mana yang mendukung jawaban.
 
-4. Ringkas dalam beberapa paragraf.
+Jangan menyalin review mentah.
 
-5. Sebutkan dokumen mana yang mendukung jawaban.
+Buatlah jawaban dalam bentuk ringkasan yang mudah dipahami.
+
+Jika ada beberapa review, rangkum menjadi satu kesimpulan.
+
+Jika informasi tidak cukup, katakan bahwa data belum cukup.
 
 PERTANYAAN
 
@@ -141,7 +145,7 @@ if run and question:
 
     # Retrieval
     with st.spinner("Mencari dokumen relevan..."):
-        docs = retrieve(question, top_k=top_k)
+        docs = retrieve(question, docs)
 
     st.subheader("💬 Jawaban")
 
