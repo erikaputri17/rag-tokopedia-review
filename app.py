@@ -105,7 +105,14 @@ def retrieve(query, top_k=5):
 # --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
 def generate_answer(question, docs, user_api_key):
     genai.configure(api_key=user_api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    def generate_answer(question, docs, user_api_key):
+    genai.configure(api_key=user_api_key)
+    
+    # Coba gunakan gemini-1.5-flash-latest atau gemini-1.5-pro
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+    except Exception:
+        model = genai.GenerativeModel("gemini-1.5-pro")
     
     context = ""
     for i, d in enumerate(docs):
