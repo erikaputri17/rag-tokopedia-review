@@ -103,30 +103,11 @@ def retrieve(query, top_k=5):
     return documents
 
 # --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI - AUTO DETECT MODEL) ---
+# --- FUNGSI GENERATE ANSWER (GOOGLE GENAI SDK TERBARU) ---
 def generate_answer(question, docs, user_api_key):
-    genai.configure(api_key=user_api_key)
-    
-    # 1. Cari model yang didukung secara otomatis dari API Key Anda
-    target_model_name = None
-    try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                # Prioritaskan model flash jika ada
-                if 'flash' in m.name:
-                    target_model_name = m.name
-                    break
-                elif not target_model_name:
-                    target_model_name = m.name
-    except Exception as e:
-        st.warning(f"Gagal melakukan auto-detect model: {e}")
+    # Inisialisasi client resmi SDK terbaru
+    client = genai.Client(api_key=user_api_key)
 
-    # Fallback jika list_models gagal
-    if not target_model_name:
-        target_model_name = "gemini-1.5-flash"
-
-    # 2. Inisialisasi Model
-    model = genai.GenerativeModel(target_model_name)
-    
     context = ""
     for i, d in enumerate(docs):
         context += f"""
@@ -162,14 +143,13 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    response = model.generate_content(prompt)
-    
-    if response and hasattr(response, 'text') and response.text:
-        return response.text
-    elif response and response.candidates:
-        return response.candidates[0].content.parts[0].text
-    else:
-        return "Maaf, AI tidak dapat menghasilkan jawaban untuk pertanyaan ini."
+    # Menggunakan alias model resmi 'gemini-flash' (otomatis menggunakan versi paling baru & stabil)
+    response = client.models.generate_content(
+        model="gemini-flash",
+        contents=prompt,
+    )
+
+    return response.text
 
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
