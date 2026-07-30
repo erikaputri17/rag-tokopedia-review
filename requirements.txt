@@ -2,5 +2,4 @@ streamlit
 pandas
 numpy
 scikit-learn
-google-generativeai
-mistralai
+mistralai>=1.5.0
