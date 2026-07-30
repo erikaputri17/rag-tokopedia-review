@@ -103,34 +103,12 @@ def retrieve(query, top_k=5):
     return documents
 
 # --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
+# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
 def generate_answer(question, docs, user_api_key):
     genai.configure(api_key=user_api_key)
     
-    # Kumpulan nama model kandidat resmi
-    candidate_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"]
-    
-    model = None
-    # Coba cari model yang tersedia dari API key secara otomatis
-    try:
-        available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        if available:
-            # Gunakan model pertama yang mendukung generateContent
-            selected_model_name = available[0]
-            model = genai.GenerativeModel(selected_model_name)
-    except Exception:
-        pass
-
-    # Fallback jika pencarian daftar model gagal
-    if model is None:
-        for m_name in candidate_models:
-            try:
-                model = genai.GenerativeModel(m_name)
-                break
-            except Exception:
-                continue
-
-    if model is None:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+    # Gunakan nama model resmi dan paling stabil
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     context = ""
     for i, d in enumerate(docs):
@@ -168,8 +146,15 @@ JAWABAN:
 """
 
     response = model.generate_content(prompt)
-    return response.text
-
+    
+    # Penanganan aman untuk mengambil teks respon
+    if hasattr(response, 'text') and response.text:
+        return response.text
+    elif response.candidates:
+        return response.candidates[0].content.parts[0].text
+    else:
+        return "Maaf, AI tidak dapat menghasilkan jawaban untuk pertanyaan ini."
+    
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
