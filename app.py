@@ -144,33 +144,22 @@ with col1:
 if run and question:
 
     # Retrieval
-    with st.spinner("Mencari dokumen relevan..."):
-        docs = retrieve(question, docs)
+    with st.spinner("Mencari dokumen..."):
+        docs = retrieve(question, top_k)
+
+    # Generation
+    with st.spinner("Menyusun jawaban..."):
+        answer = generate_answer(question, docs)
 
     st.subheader("💬 Jawaban")
+    st.write(answer)
 
-    try:
-        with st.spinner("Menghasilkan jawaban..."):
-            answer = generate_answer(question, docs)
-
-        st.success("Jawaban berhasil dibuat.")
-        st.write(answer)
-
-    except Exception as e:
-        st.error(f"Gagal menghasilkan jawaban: {e}")
-
-    st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
+    st.subheader("📚 Referensi")
 
     for d in docs:
-
         with st.expander(
-            f"[{d['score']:.3f}] {d['category']} - {d['product']}"
+            f"{d['category']} - {d['product']}"
         ):
-
-            st.write(f"**Kategori:** {d['category']}")
-            st.write(f"**Produk:** {d['product']}")
-            st.write(f"**Sentimen:** {d['sentiment']}")
-            st.write("**Isi Review:**")
             st.write(d["review"])
 
 st.markdown("---")
