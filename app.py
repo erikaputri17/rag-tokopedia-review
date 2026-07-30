@@ -3,7 +3,9 @@ import pandas as pd
 import numpy as np
 import re
 import string
-import google.generativeai as genai
+
+# Impor resmi dari SDK google-genai terbaru
+from google import genai
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -102,12 +104,11 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI - AUTO DETECT MODEL) ---
-# --- FUNGSI GENERATE ANSWER (GOOGLE GENAI SDK TERBARU) ---
+# --- FUNGSI GENERATE ANSWER (SDK GOOGLE GENAI TERBARU) ---
 def generate_answer(question, docs, user_api_key):
-    # Inisialisasi client resmi SDK terbaru
+    # Inisialisasi client dari google-genai
     client = genai.Client(api_key=user_api_key)
-
+    
     context = ""
     for i, d in enumerate(docs):
         context += f"""
@@ -143,12 +144,11 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    # Menggunakan alias model resmi 'gemini-flash' (otomatis menggunakan versi paling baru & stabil)
+    # Memanggil model gemini-flash resmi
     response = client.models.generate_content(
         model="gemini-flash",
         contents=prompt,
     )
-
     return response.text
 
 # --- INTERFACE UTAMA ---
@@ -199,7 +199,7 @@ if run:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
-                st.markdown(answer)  # Menggunakan st.markdown agar format teks terstruktur rapi
+                st.markdown(answer)
             except Exception as e:
                 st.error(f"Gagal menghasilkan jawaban dari Gemini API: {e}")
 
