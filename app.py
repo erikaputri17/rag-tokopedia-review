@@ -3,24 +3,10 @@ import pandas as pd
 import numpy as np
 import re
 import string
+import google.generativeai as genai
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-# Impor dengan penanganan backward-compatibility
-# Penanganan Impor Kompatibel untuk Mistral AI Versi Lama Maupun Baru
-try:
-    from mistralai import Mistral
-except ImportError:
-    from mistralai.client import MistralClient
-    
-    # Wrapper sederhana jika SDK yang terinstall adalah versi lama
-    class Mistral:
-        def __init__(self, api_key):
-            self.client = MistralClient(api_key=api_key)
-            self.chat = self
-        def complete(self, model, messages):
-            res = self.client.chat(model=model, messages=messages)
-            return res
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -29,15 +15,21 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- PENANGANAN API KEY ---
+# --- PENANGANAN GEMINI API KEY ---
 api_key = None
-if "MISTRAL_API_KEY" in st.secrets:
-    api_key = st.secrets["MISTRAL_API_KEY"]
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+elif "GOOGLE_API_KEY" in st.secrets:
+    api_key = st.secrets["GOOGLE_API_KEY"]
 
 with st.sidebar:
     st.header("⚙️ Pengaturan RAG")
     if not api_key:
-        api_key = st.text_input("Masukkan Mistral API Key:", type="password", help="Dapatkan API Key di console.mistral.ai")
+        api_key = st.text_input(
+            "Masukkan Gemini API Key:", 
+            type="password", 
+            help="Dapatkan API Key gratis di https://aistudio.google.com/apikey"
+        )
     
     top_k = st.slider(
         "Jumlah dokumen yang diambil (Top-K):",
@@ -46,7 +38,7 @@ with st.sidebar:
         value=5
     )
 
-# --- MEMATIKAN DATASET ---
+# --- LOAD DATASET ---
 @st.cache_data
 def load_data():
     df = pd.read_csv("PRDECT-ID_Dataset.csv")
@@ -55,7 +47,7 @@ def load_data():
 try:
     df = load_data()
 except Exception as e:
-    st.error("File 'PRDECT-ID_Dataset.csv' tidak ditemukan. Pastikan file berada di direktori yang sama.")
+    st.error("File 'PRDECT-ID_Dataset.csv' tidak ditemukan. Pastikan file tersimpan di root direktori repository GitHub Anda.")
     st.stop()
 
 # --- KAMUS NORMALISASI SLANG & CLEANING TEKS ---
@@ -110,54 +102,54 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (MISTRAL AI) ---
-def generate_answer(question, docs, client_api):
-    try:
-        from mistralai import Mistral
-        client = Mistral(api_key=client_api)
-        
-        context = ""
-        for i, d in enumerate(docs):
-            context += f"\nDokumen {i+1}\nKategori : {d['category']}\nProduk   : {d['product']}\nSentimen : {d['sentiment']}\nReview   : {d['review']}\n--------------------------------------\n"
+# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
+def generate_answer(question, docs, user_api_key):
+    genai.configure(api_key=user_api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    
+    context = ""
+    for i, d in enumerate(docs):
+        context += f"""
+Dokumen {i+1}
+Kategori : {d['category']}
+Produk   : {d['product']}
+Sentimen : {d['sentiment']}
+Review   : {d['review']}
+--------------------------------------
+"""
 
-        prompt = f"""Anda adalah AI Assistant analisis kepuasan pelanggan PRDECT-ID.
-Jawablah pertanyaan HANYA berdasarkan konteks ulasan berikut:
+    prompt = f"""
+Anda adalah AI Assistant yang bertugas menganalisis kepuasan pelanggan e-commerce Indonesia berdasarkan dataset ulasan PRDECT-ID.
 
+Jawablah pertanyaan pengguna HANYA berdasarkan konteks ulasan yang diberikan berikut ini.
+Jangan menggunakan pengetahuan atau asumsi di luar ulasan ini.
+Jika informasi pada dokumen ulasan tidak mencukupi, katakan secara jujur bahwa data ulasan belum mencukupi.
+
+Aturan Jawaban:
+1. Buat jawaban ringkas, terstruktur, dan analisis yang natural.
+2. Rangkum temuan utama (poin positif/negatif) bukan sekadar menyalin teks ulasan.
+3. Di bagian akhir, sebutkan secara jelas dokumen referensi mana saja (misal: Dokumen 1, Dokumen 3) yang mendukung jawaban Anda.
+
+==============================
 PERTANYAAN:
 {question}
 
+==============================
 KONTEKS ULASAN:
 {context}
 
-JAWABAN:"""
+==============================
+JAWABAN:
+"""
 
-        # Memanggil API Mistral
-        if hasattr(client, 'chat') and hasattr(client.chat, 'complete'):
-            response = client.chat.complete(
-                model="mistral-small-latest",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.choices[0].message.content
-        else:
-            # Fallback untuk SDK versi lama (MistralClient)
-            from mistralai.client import MistralClient
-            from mistralai.models.chat_completion import ChatMessage
-            
-            old_client = MistralClient(api_key=client_api)
-            response = old_client.chat(
-                model="mistral-small-latest",
-                messages=[ChatMessage(role="user", content=prompt)]
-            )
-            return response.choices[0].message.content
-            
-    except Exception as e:
-        raise Exception(f"Gagal memanggil Mistral API: {str(e)}")
+    response = model.generate_content(prompt)
+    return response.text
 
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
 Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
-*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Mistral AI LLM Generation*
+*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Google Gemini LLM Generation*
 """)
 
 # Sidebar Info
@@ -191,19 +183,19 @@ if run:
     if not question.strip():
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
     elif not api_key:
-        st.error("Mistral API Key belum diisi. Masukkan API Key di sidebar atau konfigurasi st.secrets.")
+        st.error("Gemini API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
     else:
         with st.spinner("🔍 Melakukan retrieval dokumen relevan..."):
             docs = retrieve(question, top_k)
 
-        with st.spinner("🤖 Menyusun analisis menggunakan Mistral AI..."):
+        with st.spinner("🤖 Menyusun analisis menggunakan Google Gemini..."):
             try:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
                 st.write(answer)
             except Exception as e:
-                st.error(f"Gagal menghasilkan jawaban dari Mistral API: {e}")
+                st.error(f"Gagal menghasilkan jawaban dari Gemini API: {e}")
 
         st.markdown("---")
         st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
