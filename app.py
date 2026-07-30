@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import re
 import string
-from mistralai import Mistral
+import google.generativeai as genai
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -14,18 +15,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- PENANGANAN MISTRAL API KEY ---
+# --- PENANGANAN GEMINI API KEY ---
 api_key = None
-if "MISTRAL_API_KEY" in st.secrets:
-    api_key = st.secrets["MISTRAL_API_KEY"]
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+elif "GOOGLE_API_KEY" in st.secrets:
+    api_key = st.secrets["GOOGLE_API_KEY"]
 
 with st.sidebar:
     st.header("⚙️ Pengaturan RAG")
     if not api_key:
         api_key = st.text_input(
-            "Masukkan Mistral API Key:", 
+            "Masukkan Gemini API Key:", 
             type="password", 
-            help="Dapatkan API Key gratis di https://console.mistral.ai"
+            help="Dapatkan API Key gratis di https://aistudio.google.com/apikey"
         )
     
     top_k = st.slider(
@@ -99,9 +102,12 @@ def retrieve(query, top_k=5):
         })
     return documents
 
-# --- FUNGSI GENERATE ANSWER (MISTRAL AI) ---
+# --- FUNGSI GENERATE ANSWER (GOOGLE GEMINI) ---
 def generate_answer(question, docs, user_api_key):
-    client = Mistral(api_key=user_api_key)
+    genai.configure(api_key=user_api_key)
+    
+    # Pilih model Gemini
+    model = genai.GenerativeModel("gemini-1.5-flash")
     
     context = ""
     for i, d in enumerate(docs):
@@ -138,17 +144,21 @@ KONTEKS ULASAN:
 JAWABAN:
 """
 
-    response = client.chat.complete(
-        model="mistral-small-latest",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content
+    response = model.generate_content(prompt)
+    
+    # Ambil teks dengan penanganan aman
+    if response and hasattr(response, 'text') and response.text:
+        return response.text
+    elif response and response.candidates:
+        return response.candidates[0].content.parts[0].text
+    else:
+        return "Maaf, AI tidak dapat menghasilkan jawaban untuk pertanyaan ini. Coba ajukan pertanyaan lain."
 
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
 Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
-*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Mistral AI LLM Generation*
+*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Google Gemini LLM Generation*
 """)
 
 # Sidebar Info
@@ -182,19 +192,19 @@ if run:
     if not question.strip():
         st.warning("Silakan masukkan pertanyaan terlebih dahulu.")
     elif not api_key:
-        st.error("Mistral API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
+        st.error("Gemini API Key belum diisi. Masukkan API Key di sidebar atau tambahkan ke Streamlit Secrets.")
     else:
         with st.spinner("🔍 Melakukan retrieval dokumen relevan..."):
             docs = retrieve(question, top_k)
 
-        with st.spinner("🤖 Menyusun analisis menggunakan Mistral AI..."):
+        with st.spinner("🤖 Menyusun analisis menggunakan Google Gemini..."):
             try:
                 answer = generate_answer(question, docs, api_key)
                 st.success("Analisis Berhasil Disusun!")
                 st.subheader("💬 Hasil Analisis AI")
-                st.write(answer)
+                st.markdown(answer)  # Menggunakan st.markdown agar format teks terstruktur rapi
             except Exception as e:
-                st.error(f"Gagal menghasilkan jawaban dari Mistral API: {e}")
+                st.error(f"Gagal menghasilkan jawaban dari Gemini API: {e}")
 
         st.markdown("---")
         st.subheader("📚 Dokumen Referensi (Hasil Retrieval)")
