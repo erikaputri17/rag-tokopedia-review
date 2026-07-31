@@ -149,8 +149,7 @@ JAWABAN:
 # --- INTERFACE UTAMA ---
 st.title("🛍️ RAG - Analisis Kepuasan Pelanggan PRDECT-ID")
 st.markdown("""
-Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Indonesia.  
-*Arsitektur: TF-IDF Retrieval + Cosine Similarity + Llama 3 (via Groq)*
+Prototipe **Retrieval-Augmented Generation (RAG)** untuk Analisis Kepuasan Pelanggan E-Commerce Tokopedia Indonesia.  
 """)
 
 # Sidebar Info
