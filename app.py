@@ -158,11 +158,23 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("📊 Informasi Dataset")
     st.write(f"Total Ulasan: **{len(df):,}**")
-    st.write(f"Total Kategori: **{df['Category'].nunique()}**")
+    
     pos_count = (df['Sentiment'].astype(str).str.capitalize() == 'Positive').sum()
     neg_count = (df['Sentiment'].astype(str).str.capitalize() == 'Negative').sum()
     st.write(f"Review Positif: **{pos_count:,}**")
     st.write(f"Review Negatif: **{neg_count:,}**")
+
+    st.markdown("---")
+    st.subheader("🏷️ Daftar Kategori Produk")
+    
+    # Menghitung sebaran jumlah ulasan per kategori
+    category_counts = df['Category'].value_counts()
+    st.write(f"Total Kategori: **{len(category_counts)}**")
+    
+    # Menampilkan daftar kategori dan jumlah ulasannya dalam format tabel mini / expander
+    with st.expander("📌 Lihat Semua Kategori", expanded=True):
+        for cat_name, count in category_counts.items():
+            st.markdown(f"• **{cat_name}**: `{count:,}` ulasan")
 
     st.markdown("---")
     st.subheader("💡 Contoh Pertanyaan")
